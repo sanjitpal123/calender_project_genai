@@ -4,7 +4,7 @@ import dotenv from "dotenv";
 import { google } from "googleapis";
 dotenv.config();
 const oauth2Client = new google.auth.OAuth2(
-  process.env.CLIEND_ID,
+  process.env.CLIENT_ID,
   process.env.CLIENT_SECRET,
   process.env.REDIRECT,
 );
@@ -53,14 +53,62 @@ export const getEvents = tool(
 );
 
 export const createEvents = tool(
-  (name) => {
-    return `event is created with ${name}`;
+  async ({ calendarId, summary, location, start, end, attendees }) => {
+    const res = await client.events.insert({
+      calendarId: calendarId,
+      conferenceDataVersion: 1,
+      requestBody: {
+        summary: summary,
+        location: location,
+        description: "Initial meeting to discuss project goals and timelines.",
+
+        start: start,
+        end: end,
+
+        attendees: attendees,
+
+        conferenceData: {
+          createRequest: {
+            requestId: "meet-" + Date.now(),
+            conferenceSolutionKey: {
+              type: "hangoutsMeet",
+            },
+          },
+        },
+
+        reminders: {
+          useDefault: true,
+        },
+      },
+    });
+
+    return res.data;
   },
   {
     name: "create_events",
-    description: "create the events ",
+    description: "Create a Google Calendar event",
     schema: z.object({
-      name: z.string().describe("Name of the guest"),
+      calendarId: z.string().describe("Google calendar ID"),
+      summary: z.string().describe("Event title"),
+      location: z.string().describe("Event location"),
+      start: z.object({
+        dateTime: z.string(),
+        timeZone: z.string(),
+      }),
+      end: z.object({
+        dateTime: z.string(),
+        timeZone: z.string(),
+      }),
+      attendees: z.array(
+        z.object({
+          email: z.string(),
+        }),
+      ),
     }),
   },
 );
+
+export const updateEvent = tool(({}) => {}, {
+  name: "updateEvent",
+  description: "update an existing event ",
+});
