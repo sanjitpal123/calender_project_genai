@@ -18,40 +18,44 @@ const client = google.calendar({
   auth: oauth2Client,
 });
 export const getEvents = tool(
-  async ({ q, timeMax, timeMin }) => {
-    const res = await client.events.list({
-      calendarId: "primary",
-      orderBy: "startTime",
-      timeMax,
-      timeMin,
-      singleEvents: true,
-    });
-    const lists = res.data.items;
-    const results = lists.map((event) => {
-      return {
+  async ({ q, timeMin, timeMax }) => {
+    try {
+      const res = await client.events.list({
+        calendarId: "primary",
+        q,
+        orderBy: "startTime",
+        timeMin,
+        timeMax,
+        singleEvents: true,
+      });
+
+      const events = res.data.items || [];
+
+      const results = events.map((event) => ({
+        id: event.id,
         summary: event.summary,
-        updated: event.updated,
         location: event.location,
         created: event.created,
-        creator: event.creator,
+        updated: event.updated,
         attendees: event.attendees,
         start: event.start,
         end: event.end,
-      };
-    });
-    return JSON.stringify(results);
+      }));
+      return JSON.stringify(results);
+    } catch (error) {
+      return error.message;
+    }
   },
   {
     name: "get_events",
-    description: "get the event",
+    description: "Search events in Google Calendar",
     schema: z.object({
-      q: z.string().describe("Query for searching events "),
-      timeMin: z.string().describe("the start time for the event in utc"),
-      timeMax: z.string().describe("the end time for event in utc"),
+      q: z.string().describe("Search query for event title"),
+      timeMin: z.string().describe("Start time in ISO format"),
+      timeMax: z.string().describe("End time in ISO format"),
     }),
   },
 );
-
 export const createEvents = tool(
   async ({ calendarId, summary, location, start, end, attendees }) => {
     const res = await client.events.insert({
@@ -108,7 +112,70 @@ export const createEvents = tool(
   },
 );
 
-export const updateEvent = tool(({}) => {}, {
-  name: "updateEvent",
-  description: "update an existing event ",
-});
+export const updateEvent = tool(
+  async ({ calendarId, eventId, summary, location, start, end, attendees }) => {
+    try {
+      const res = await client.events.update({
+        calendarId,
+        eventId,
+        requestBody: {
+          summary,
+          location,
+          start,
+          end,
+          attendees,
+        },
+      });
+
+      return res.data;
+    } catch (error) {
+      return error.message;
+    }
+  },
+  {
+    name: "update_event",
+    description: "Update an existing Google Calendar event",
+    schema: z.object({
+      calendarId: z.string().describe("Google calendar ID"),
+      eventId: z.string().describe("Event ID to update"),
+      summary: z.string().describe("New event title"),
+      location: z.string().describe("Event location"),
+      start: z.object({
+        dateTime: z.string(),
+        timeZone: z.string(),
+      }),
+      end: z.object({
+        dateTime: z.string(),
+        timeZone: z.string(),
+      }),
+      attendees: z.array(
+        z.object({
+          email: z.string(),
+        }),
+      ),
+    }),
+  },
+);
+
+export const deleteEvent = tool(
+  async ({ eventId, calendarId }) => {
+    try {
+      await client.events.delete({
+        calendarId,
+        eventId,
+      });
+
+      return `Event ${eventId} deleted successfully`;
+    } catch (error) {
+      return error.message;
+    }
+  },
+  {
+    name: "deleteEvent",
+    description: "Delete an event from Google Calendar",
+    schema: z.object({
+      eventId: z.string(),
+      calendarId: z.string(),
+    }),
+  },
+);
